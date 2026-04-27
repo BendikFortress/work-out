@@ -16,6 +16,12 @@ body {
   box-sizing: border-box;
 }
 
+/* Prevent iOS Safari auto-zoom on input focus.
+   Safari zooms in when font-size < 16px; keeping it at 16px stops that entirely. */
+input, textarea, select {
+  font-size: 16px;
+}
+
 /* Custom scrollbar */
 ::-webkit-scrollbar {
   width: 4px;
