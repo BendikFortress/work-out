@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import Nav from "@/components/Nav";
+import SessionWrapper from "@/components/SessionWrapper";
 
 export const metadata: Metadata = {
   title: "9-Week Shred",
@@ -11,8 +12,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en" className="dark">
       <body className="bg-[#0a0a0a] text-white min-h-screen">
-        <Nav />
-        <main className="pb-24">{children}</main>
+        <SessionWrapper>
+          <Nav />
+          <main className="pb-24">{children}</main>
+        </SessionWrapper>
       </body>
     </html>
   );

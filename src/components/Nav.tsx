@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { signOut } from "next-auth/react";
 
 const links = [
   { href: "/", label: "Today", icon: TodayIcon },
@@ -12,6 +13,9 @@ const links = [
 
 export default function Nav() {
   const pathname = usePathname();
+
+  // Don't show nav on login/register pages
+  if (pathname === "/login" || pathname === "/register") return null;
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-50 bg-[#111] border-t border-white/10">
@@ -31,8 +35,25 @@ export default function Nav() {
             </Link>
           );
         })}
+        <button
+          onClick={() => signOut({ callbackUrl: "/login" })}
+          className="flex-1 flex flex-col items-center gap-1 py-3 text-xs font-medium text-zinc-500 hover:text-zinc-300 transition-colors"
+        >
+          <SignOutIcon />
+          Sign out
+        </button>
       </div>
     </nav>
+  );
+}
+
+function SignOutIcon() {
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round">
+      <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+      <polyline points="16 17 21 12 16 7" />
+      <line x1="21" y1="12" x2="9" y2="12" />
+    </svg>
   );
 }
 

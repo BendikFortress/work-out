@@ -2,19 +2,8 @@
 
 import { useState, useEffect } from "react";
 import {
-  getSettings,
-  getAllLogs,
-  saveSettings,
-  getDateRange,
-  isPast,
-  isToday,
-  type DayLog,
-  type Settings,
-} from "@/lib/tracking";
-import {
   getWorkoutForDay,
   getWeekNumber,
-  WORKOUT_SESSIONS,
   WORKOUT_BADGE_COLORS,
   type WorkoutType,
 } from "@/lib/plan-data";
@@ -22,50 +11,91 @@ import {
 const DAY_SHORT = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const MONTH_SHORT = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
+interface Settings {
+  startDate: string;
+  startWeight: number;
+  targetWeight: number;
+}
+
+interface ApiLog {
+  date: string;
+  workoutCompleted: boolean;
+  workoutType: string | null;
+  bodyWeight: number | null;
+  exerciseLogs: Record<string, { completed: boolean; weight?: number }>;
+  macros: { calories?: number; protein?: number; carbs?: number; fat?: number };
+  mealsChecked: { lunch: boolean; snack: boolean; dinner: boolean; eveningSnack: boolean };
+}
+
 function formatDisplayDate(dateStr: string) {
   const d = new Date(dateStr + "T12:00:00");
   return `${DAY_SHORT[d.getDay()]} ${d.getDate()} ${MONTH_SHORT[d.getMonth()]}`;
 }
 
-function getCompletionStatus(log: DayLog | undefined, workoutType: WorkoutType) {
-  if (!log) return { workout: false, meals: 0, weight: false };
-  const isRestOrActive = workoutType === "rest" || workoutType === "active" || workoutType === "walk";
-  const mealKeys: (keyof DayLog["mealsChecked"])[] = ["lunch", "snack", "dinner", "eveningSnack"];
-  const mealsChecked = mealKeys.filter((k) => log.mealsChecked[k]).length;
+function getDateRange(startDate: string, weeks: number): string[] {
+  const dates: string[] = [];
+  const start = new Date(startDate);
+  for (let i = 0; i < weeks * 7; i++) {
+    const d = new Date(start);
+    d.setDate(start.getDate() + i);
+    dates.push(d.toISOString().split("T")[0]);
+  }
+  return dates;
+}
+
+function isPast(d: string, today: string) { return d < today; }
+function isToday(d: string, today: string) { return d === today; }
+
+function getMacroStatus(log: ApiLog | undefined): "none" | "partial" | "full" {
+  if (!log?.macros) return "none";
+  const keys: (keyof ApiLog["macros"])[] = ["calories", "protein", "carbs", "fat"];
+  const logged = keys.filter((k) => log.macros[k] != null).length;
+  if (logged === 0) return "none";
+  if (logged < 4) return "partial";
+  return "full";
+}
+
+function getCompletionStatus(log: ApiLog | undefined, workoutType: WorkoutType) {
+  const isRestOrActive = ["rest", "active", "walk"].includes(workoutType);
+  const mealsChecked = log
+    ? ["lunch", "snack", "dinner", "eveningSnack"].filter((k) => (log.mealsChecked as Record<string, boolean>)[k]).length
+    : 0;
   return {
-    workout: isRestOrActive ? true : log.workoutCompleted,
+    workout: isRestOrActive ? true : (log?.workoutCompleted ?? false),
     meals: mealsChecked,
-    weight: !!log.weight,
+    weight: !!(log?.bodyWeight),
   };
 }
 
 export default function TrackingPage() {
-  const [logs, setLogs] = useState<Record<string, DayLog>>({});
+  const [logs, setLogs] = useState<Record<string, ApiLog>>({});
   const [settings, setSettings] = useState<Settings | null>(null);
   const [showSettings, setShowSettings] = useState(false);
   const [startDateInput, setStartDateInput] = useState("");
   const [startWeightInput, setStartWeightInput] = useState("");
 
   useEffect(() => {
-    const s = getSettings();
-    setSettings(s);
-    setStartDateInput(s.startDate);
-    setStartWeightInput(String(s.startWeight));
-    setLogs(getAllLogs());
+    async function load() {
+      const [sRes, lRes] = await Promise.all([fetch("/api/settings"), fetch("/api/logs")]);
+      const s: Settings = await sRes.json();
+      const l: Record<string, ApiLog> = await lRes.json();
+      setSettings(s);
+      setStartDateInput(s.startDate);
+      setStartWeightInput(String(s.startWeight));
+      setLogs(l);
+    }
+    load();
   }, []);
 
   if (!settings) return <LoadingSkeleton />;
 
-  const allDates = getDateRange(settings.startDate, 9);
   const today = new Date().toISOString().split("T")[0];
+  const allDates = getDateRange(settings.startDate, 9);
 
-  // Group by week
   const weeks: string[][] = [];
-  for (let i = 0; i < 9; i++) {
-    weeks.push(allDates.slice(i * 7, i * 7 + 7));
-  }
+  for (let i = 0; i < 9; i++) weeks.push(allDates.slice(i * 7, i * 7 + 7));
 
-  function saveSettingsHandler() {
+  async function saveSettingsHandler() {
     const w = parseFloat(startWeightInput);
     const updated: Settings = {
       startDate: startDateInput,
@@ -73,30 +103,36 @@ export default function TrackingPage() {
       targetWeight: settings!.targetWeight,
     };
     setSettings(updated);
-    saveSettings(updated);
     setShowSettings(false);
-    setLogs(getAllLogs());
+    await fetch("/api/settings", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(updated),
+    });
+    // Reload logs in case date range changed
+    const lRes = await fetch("/api/logs");
+    setLogs(await lRes.json());
   }
 
-  // Calculate streak
-  const sortedPastDates = allDates.filter((d) => (isPast(d) || isToday(d)) && d <= today);
+  // Streak
+  const sortedPastDates = allDates.filter((d) => isPast(d, today) || isToday(d, today));
   let streak = 0;
   for (let i = sortedPastDates.length - 1; i >= 0; i--) {
-    const dateStr = sortedPastDates[i];
-    const d = new Date(dateStr + "T12:00:00");
+    const d = new Date(sortedPastDates[i] + "T12:00:00");
     const wt = getWorkoutForDay(getWeekNumber(settings.startDate, d), d.getDay()) as WorkoutType;
-    const status = getCompletionStatus(logs[dateStr], wt);
-    if (status.workout) {
-      streak++;
-    } else if (dateStr !== today) {
-      break;
-    }
+    const status = getCompletionStatus(logs[sortedPastDates[i]], wt);
+    if (status.workout) { streak++; } else if (sortedPastDates[i] !== today) { break; }
   }
 
-  // Weight data for mini chart
+  const workoutsDone = sortedPastDates.filter((d) => {
+    const day = new Date(d + "T12:00:00");
+    const wt = getWorkoutForDay(getWeekNumber(settings.startDate, day), day.getDay()) as WorkoutType;
+    return getCompletionStatus(logs[d], wt).workout;
+  }).length;
+
   const weightPoints = allDates
-    .filter((d) => logs[d]?.weight)
-    .map((d) => ({ date: d, weight: logs[d].weight! }));
+    .filter((d) => logs[d]?.bodyWeight)
+    .map((d) => ({ date: d, weight: logs[d].bodyWeight! }));
 
   return (
     <div className="max-w-lg mx-auto px-4 pt-6 space-y-6">
@@ -149,21 +185,15 @@ export default function TrackingPage() {
       {/* Stats */}
       <div className="grid grid-cols-3 gap-2">
         <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-3 text-center">
-          <p className="text-2xl font-bold text-white">{streak}</p>
+          <p className="text-2xl font-bold">{streak}</p>
           <p className="text-xs text-zinc-500 mt-1">Day streak</p>
         </div>
         <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-3 text-center">
-          <p className="text-2xl font-bold text-white">
-            {sortedPastDates.filter((d) => {
-              const day = new Date(d + "T12:00:00");
-              const wt = getWorkoutForDay(getWeekNumber(settings.startDate, day), day.getDay()) as WorkoutType;
-              return getCompletionStatus(logs[d], wt).workout;
-            }).length}
-          </p>
+          <p className="text-2xl font-bold">{workoutsDone}</p>
           <p className="text-xs text-zinc-500 mt-1">Workouts done</p>
         </div>
         <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-3 text-center">
-          <p className="text-2xl font-bold text-white">{weightPoints.length}</p>
+          <p className="text-2xl font-bold">{weightPoints.length}</p>
           <p className="text-xs text-zinc-500 mt-1">Weigh-ins</p>
         </div>
       </div>
@@ -182,9 +212,8 @@ export default function TrackingPage() {
       <section className="space-y-4">
         {weeks.map((weekDates, weekIdx) => {
           const weekNum = weekIdx + 1;
-          const pastDates = weekDates.filter((d) => isPast(d) || isToday(d));
+          const pastDates = weekDates.filter((d) => isPast(d, today) || isToday(d, today));
           if (pastDates.length === 0 && weekIdx > 0) {
-            // Only show future weeks as collapsed
             return (
               <div key={weekIdx} className="bg-zinc-900/50 border border-zinc-800/50 rounded-2xl px-4 py-3">
                 <p className="text-sm text-zinc-600 font-medium">Week {weekNum} — upcoming</p>
@@ -194,27 +223,20 @@ export default function TrackingPage() {
 
           return (
             <div key={weekIdx}>
-              <h2 className="text-xs font-semibold text-zinc-500 uppercase tracking-wider mb-2">
-                Week {weekNum}
-              </h2>
+              <h2 className="text-xs font-semibold text-zinc-500 uppercase tracking-wider mb-2">Week {weekNum}</h2>
               <div className="bg-zinc-900 border border-zinc-800 rounded-2xl overflow-hidden divide-y divide-zinc-800/60">
                 {weekDates.map((dateStr) => {
                   const d = new Date(dateStr + "T12:00:00");
-                  const weekN = getWeekNumber(settings.startDate, d);
-                  const wt = getWorkoutForDay(weekN, d.getDay()) as WorkoutType;
-                  const workout = WORKOUT_SESSIONS[wt];
+                  const wt = getWorkoutForDay(getWeekNumber(settings.startDate, d), d.getDay()) as WorkoutType;
                   const log = logs[dateStr];
                   const status = getCompletionStatus(log, wt);
-                  const past = isPast(dateStr);
-                  const todayFlag = isToday(dateStr);
+                  const past = isPast(dateStr, today);
+                  const todayFlag = isToday(dateStr, today);
                   const future = !past && !todayFlag;
-                  const isRestType = wt === "rest" || wt === "active" || wt === "walk";
+                  const isRestType = ["rest", "active", "walk"].includes(wt);
 
                   return (
-                    <div
-                      key={dateStr}
-                      className={`flex items-center gap-3 px-4 py-3 ${todayFlag ? "bg-zinc-800/40" : ""}`}
-                    >
+                    <div key={dateStr} className={`flex items-center gap-3 px-4 py-3 ${todayFlag ? "bg-zinc-800/40" : ""}`}>
                       {/* Date */}
                       <div className="w-16 flex-shrink-0">
                         <p className={`text-sm font-medium ${todayFlag ? "text-white" : future ? "text-zinc-600" : "text-zinc-300"}`}>
@@ -223,42 +245,30 @@ export default function TrackingPage() {
                         </p>
                       </div>
 
-                      {/* Workout type badge */}
+                      {/* Workout badge + inline data */}
                       <div className="flex-1 min-w-0">
                         <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${future ? "opacity-40" : ""} ${WORKOUT_BADGE_COLORS[wt]}`}>
                           {wt.toUpperCase()}
                         </span>
-                        {log?.weight && (
-                          <span className="text-xs text-zinc-500 ml-2">{log.weight} kg</span>
+                        {log?.bodyWeight && (
+                          <span className="text-xs text-zinc-500 ml-2">{log.bodyWeight} kg</span>
+                        )}
+                        {log?.macros?.calories != null && (
+                          <span className="text-xs text-zinc-600 ml-2">{log.macros.calories} kcal</span>
                         )}
                       </div>
 
-                      {/* Status icons */}
+                      {/* Status dots */}
                       <div className="flex items-center gap-1.5 flex-shrink-0">
-                        {/* Workout */}
                         {!isRestType && (
-                          <StatusDot
-                            done={status.workout}
-                            missing={past && !status.workout}
-                            future={future}
-                            label="W"
-                          />
+                          <StatusDot done={status.workout} missing={past && !status.workout} future={future} label="W" />
                         )}
-                        {/* Meals */}
-                        <StatusDot
-                          done={status.meals >= 3}
-                          missing={past && status.meals < 3}
-                          future={future}
-                          label="M"
-                          partial={status.meals > 0 && status.meals < 3}
-                        />
-                        {/* Weight */}
-                        <StatusDot
-                          done={status.weight}
-                          missing={past && !status.weight}
-                          future={future}
-                          label="⚖"
-                        />
+                        <StatusDot done={status.meals >= 3} missing={past && status.meals < 3} future={future} label="M" partial={status.meals > 0 && status.meals < 3} />
+                        {(() => {
+                          const ms = getMacroStatus(log);
+                          return <StatusDot done={ms === "full"} missing={past && ms === "none"} partial={ms === "partial"} future={future} label="C" />;
+                        })()}
+                        <StatusDot done={status.weight} missing={past && !status.weight} future={future} label="⚖" />
                       </div>
                     </div>
                   );
@@ -276,7 +286,7 @@ export default function TrackingPage() {
           <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-full bg-amber-500 inline-block" />Partial</span>
           <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-full bg-rose-500 inline-block" />Missed</span>
           <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-full bg-zinc-700 inline-block" />Upcoming</span>
-          <span>W = workout · M = meals · ⚖ = weight</span>
+          <span>W = workout · M = meals · C = calories · ⚖ = weight</span>
         </div>
       </section>
     </div>
@@ -284,20 +294,13 @@ export default function TrackingPage() {
 }
 
 function StatusDot({ done, missing, future, label, partial }: {
-  done: boolean;
-  missing: boolean;
-  future: boolean;
-  label: string;
-  partial?: boolean;
+  done: boolean; missing: boolean; future: boolean; label: string; partial?: boolean;
 }) {
   const color = future
     ? "bg-zinc-800 text-zinc-600"
-    : done
-    ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/40"
-    : partial
-    ? "bg-amber-500/20 text-amber-400 border border-amber-500/40"
-    : missing
-    ? "bg-rose-500/20 text-rose-400 border border-rose-500/40"
+    : done ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/40"
+    : partial ? "bg-amber-500/20 text-amber-400 border border-amber-500/40"
+    : missing ? "bg-rose-500/20 text-rose-400 border border-rose-500/40"
     : "bg-zinc-800 text-zinc-600";
 
   return (
@@ -308,21 +311,14 @@ function StatusDot({ done, missing, future, label, partial }: {
 }
 
 function WeightChart({ points, startWeight }: { points: { date: string; weight: number }[]; startWeight: number }) {
-  if (points.length < 2) return null;
   const weights = points.map((p) => p.weight);
   const min = Math.min(...weights) - 0.5;
   const max = Math.max(...weights, startWeight) + 0.5;
   const range = max - min;
-  const W = 300;
-  const H = 80;
-
+  const W = 300; const H = 80;
   const toX = (i: number) => (i / (points.length - 1)) * W;
   const toY = (w: number) => H - ((w - min) / range) * H;
-
-  const pathD = points
-    .map((p, i) => `${i === 0 ? "M" : "L"} ${toX(i).toFixed(1)} ${toY(p.weight).toFixed(1)}`)
-    .join(" ");
-
+  const pathD = points.map((p, i) => `${i === 0 ? "M" : "L"} ${toX(i).toFixed(1)} ${toY(p.weight).toFixed(1)}`).join(" ");
   const latest = weights[weights.length - 1];
   const change = latest - startWeight;
 
@@ -336,9 +332,7 @@ function WeightChart({ points, startWeight }: { points: { date: string; weight: 
       </div>
       <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-16">
         <path d={pathD} fill="none" stroke="#3b82f6" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-        {points.map((p, i) => (
-          <circle key={i} cx={toX(i)} cy={toY(p.weight)} r="3" fill="#3b82f6" />
-        ))}
+        {points.map((p, i) => <circle key={i} cx={toX(i)} cy={toY(p.weight)} r="3" fill="#3b82f6" />)}
       </svg>
     </div>
   );

@@ -1,10 +1,24 @@
+export interface ExerciseLog {
+  completed: boolean;
+  weight?: number; // kg lifted
+}
+
+export interface MacroLog {
+  calories?: number;
+  protein?: number;
+  carbs?: number;
+  fat?: number;
+}
+
 export interface DayLog {
   date: string; // "YYYY-MM-DD"
   workoutCompleted: boolean;
   workoutType?: string;
-  weight?: number;
+  weight?: number; // bodyweight
   waist?: number;
   notes?: string;
+  exerciseLogs: Record<string, ExerciseLog>; // keyed by exercise name
+  macros: MacroLog;
   mealsChecked: {
     lunch: boolean;
     snack: boolean;
@@ -56,6 +70,8 @@ export function getLog(date: string): DayLog {
     all[date] ?? {
       date,
       workoutCompleted: false,
+      exerciseLogs: {},
+      macros: {},
       mealsChecked: { lunch: false, snack: false, dinner: false, eveningSnack: false },
     }
   );
