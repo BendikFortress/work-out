@@ -1,8 +1,8 @@
 export { auth as proxy } from "@/auth";
 
 export const config = {
+  // Only protect page routes — API routes authenticate themselves inside each handler.
   matcher: [
-    // Protect all routes except auth pages, api/auth, api/register, and Next.js internals
-    "/((?!login|register|api/auth|api/register|_next/static|_next/image|favicon.ico).*)",
+    "/((?!login|register|api/|_next/static|_next/image|favicon.ico).*)",
   ],
 };

@@ -8,7 +8,6 @@ import {
   getWeekNumber,
   getPhaseForWeek,
   MEALS,
-  CORE_TIPS,
   type WorkoutType,
   type Exercise,
 } from "@/lib/plan-data";
@@ -33,7 +32,7 @@ export default function HomePage() {
   const [log, setLog] = useState<DayLog | null>(null);
   const [weekNumber, setWeekNumber] = useState(1);
   const [workoutType, setWorkoutType] = useState<WorkoutType>("rest");
-  const [today, setToday] = useState(new Date());
+  const [today] = useState(new Date());
   const [showBodyWeightInput, setShowBodyWeightInput] = useState(false);
   const [bodyWeightInput, setBodyWeightInput] = useState("");
   const [activeWeightInput, setActiveWeightInput] = useState<string | null>(null);
@@ -44,14 +43,20 @@ export default function HomePage() {
 
   // Load settings + today's log from API
   useEffect(() => {
-    const now = new Date();
-    setToday(now);
+    const now = today;
 
     async function load() {
       const [settingsRes, logRes] = await Promise.all([
         fetch("/api/settings"),
         fetch(`/api/logs/${todayStr()}`),
       ]);
+
+      if (!settingsRes.ok) {
+        const err = await settingsRes.json().catch(() => ({ error: `HTTP ${settingsRes.status}` }));
+        console.error("[home] settings error:", err);
+        return;
+      }
+
       const settings = await settingsRes.json();
       const week = getWeekNumber(settings.startDate, now);
       setWeekNumber(week);
@@ -75,6 +80,8 @@ export default function HomePage() {
           exerciseLogs: rawLog.exerciseLogs ?? {},
           macros: rawLog.macros ?? {},
           mealsChecked: rawLog.mealsChecked ?? base.mealsChecked,
+          workoutRating: rawLog.workoutRating ?? undefined,
+          feelingScore: rawLog.feelingScore ?? undefined,
         };
         setLog(merged);
         if (merged.weight) setBodyWeightInput(String(merged.weight));
@@ -84,7 +91,7 @@ export default function HomePage() {
       }
     }
     load();
-  }, []);
+  }, [today]);
 
   useEffect(() => {
     if (activeWeightInput && weightRef.current) weightRef.current.focus();
@@ -96,7 +103,12 @@ export default function HomePage() {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(updated),
-    });
+    }).then(async (res) => {
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        console.error("[persist] save failed:", res.status, body);
+      }
+    }).catch((err) => console.error("[persist] network error:", err));
   }, []);
 
   function updateLog(updated: DayLog) {
@@ -209,7 +221,7 @@ export default function HomePage() {
             <button
               onClick={toggleWorkoutOverride}
               title={log.workoutCompleted ? "Mark incomplete" : "Mark all done"}
-              className={`flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center transition-all ${
+              className={`shrink-0 w-10 h-10 rounded-full flex items-center justify-center transition-all ${
                 log.workoutCompleted ? "bg-emerald-500 text-white" : "bg-zinc-800 text-zinc-500 hover:bg-zinc-700"
               }`}
             >
@@ -230,7 +242,7 @@ export default function HomePage() {
                   <div className="flex items-center gap-3 px-4 py-3">
                     <button
                       onClick={() => toggleExercise(ex.name, workout.exercises!)}
-                      className={`flex-shrink-0 w-5 h-5 rounded-full border flex items-center justify-center transition-all ${
+                      className={`shrink-0 w-5 h-5 rounded-full border flex items-center justify-center transition-all ${
                         exLog.completed ? "bg-emerald-500 border-emerald-500 text-white" : "border-zinc-600 hover:border-zinc-400"
                       }`}
                     >
@@ -242,7 +254,7 @@ export default function HomePage() {
                     {isWeightsSession && (
                       <button
                         onClick={() => openWeightInput(ex.name)}
-                        className={`flex-shrink-0 text-xs font-medium px-2.5 py-1 rounded-lg transition-colors ${
+                        className={`shrink-0 text-xs font-medium px-2.5 py-1 rounded-lg transition-colors ${
                           exLog.weight != null
                             ? "bg-blue-900/40 text-blue-300 border border-blue-700/50 hover:bg-blue-900/60"
                             : "bg-zinc-800 text-zinc-500 hover:bg-zinc-700 hover:text-zinc-300"
@@ -251,7 +263,7 @@ export default function HomePage() {
                         {exLog.weight != null ? `${exLog.weight} kg` : "+ kg"}
                       </button>
                     )}
-                    <span className={`flex-shrink-0 text-sm font-mono ml-1 ${exLog.completed ? "text-zinc-600" : "text-zinc-500"}`}>
+                    <span className={`shrink-0 text-sm font-mono ml-1 ${exLog.completed ? "text-zinc-600" : "text-zinc-500"}`}>
                       {ex.sets}
                     </span>
                   </div>
@@ -271,11 +283,11 @@ export default function HomePage() {
                           if (e.key === "Escape") setActiveWeightInput(null);
                         }}
                       />
-                      <span className="text-sm text-zinc-500 flex-shrink-0">kg</span>
-                      <button onClick={() => saveExerciseWeight(ex.name)} className="bg-white text-black text-sm font-medium px-3 py-2 rounded-lg hover:bg-zinc-200 transition-colors flex-shrink-0">
+                      <span className="text-sm text-zinc-500 shrink-0">kg</span>
+                      <button onClick={() => saveExerciseWeight(ex.name)} className="bg-white text-black text-sm font-medium px-3 py-2 rounded-lg hover:bg-zinc-200 transition-colors shrink-0">
                         Save
                       </button>
-                      <button onClick={() => setActiveWeightInput(null)} className="text-zinc-500 hover:text-zinc-300 text-sm flex-shrink-0 w-7 text-center">
+                      <button onClick={() => setActiveWeightInput(null)} className="text-zinc-500 hover:text-zinc-300 text-sm shrink-0 w-7 text-center">
                         ✕
                       </button>
                     </div>
@@ -291,22 +303,18 @@ export default function HomePage() {
             <p className="text-zinc-500 text-sm">Hit your protein target and stay hydrated.</p>
           </div>
         )}
-      </section>
 
-      {/* Core Tips */}
-      {isWeightsSession && (
-        <section className="rounded-2xl bg-zinc-900 border border-zinc-800 p-4">
-          <h3 className="text-xs font-semibold text-zinc-500 uppercase tracking-wider mb-3">Core focus</h3>
-          <ul className="space-y-2">
-            {CORE_TIPS.slice(0, 2).map((tip, i) => (
-              <li key={i} className="flex gap-2 text-sm text-zinc-300">
-                <span className="text-zinc-600 mt-0.5">→</span>
-                <span>{tip}</span>
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
+        {!isRest && (
+          <div className="border-t border-zinc-800 px-4 py-3">
+            <RatingPicker
+              label="Rate your workout"
+              labels={["Terrible", "Bad", "OK", "Good", "Amazing"]}
+              value={log.workoutRating ?? null}
+              onChange={(n) => updateLog({ ...log!, workoutRating: n === log.workoutRating ? undefined : n })}
+            />
+          </div>
+        )}
+      </section>
 
       {/* Meals */}
       <section className="rounded-2xl bg-zinc-900 border border-zinc-800 overflow-hidden">
@@ -326,7 +334,7 @@ export default function HomePage() {
                   i !== mealKeys.length - 1 ? "border-b border-zinc-800/60" : ""
                 }`}
               >
-                <div className={`w-5 h-5 rounded-full flex-shrink-0 flex items-center justify-center border transition-all ${
+                <div className={`w-5 h-5 rounded-full shrink-0 flex items-center justify-center border transition-all ${
                   checked ? "bg-emerald-500 border-emerald-500" : "border-zinc-600"
                 }`}>
                   {checked && <CheckIcon size={12} />}
@@ -399,6 +407,17 @@ export default function HomePage() {
         onSave={saveMacros}
         onCancel={() => setEditingMacros(false)}
       />
+
+      {/* Day feeling */}
+      <section className="rounded-2xl bg-zinc-900 border border-zinc-800 p-4 pb-5">
+        <h3 className="text-xs font-semibold text-zinc-500 uppercase tracking-wider mb-3">How did you feel today?</h3>
+        <RatingPicker
+          label=""
+          labels={["Rough", "Low", "Okay", "Good", "Great"]}
+          value={log.feelingScore ?? null}
+          onChange={(n) => updateLog({ ...log!, feelingScore: n === log.feelingScore ? undefined : n })}
+        />
+      </section>
     </div>
   );
 }
@@ -512,6 +531,41 @@ function CheckIcon({ size = 16 }: { size?: number }) {
     <svg width={size} height={size} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round">
       <polyline points="3 8 6.5 11.5 13 5" />
     </svg>
+  );
+}
+
+const RATING_COLORS: Record<number, string> = {
+  1: "bg-rose-500/25 text-rose-300 border border-rose-500/50",
+  2: "bg-orange-500/25 text-orange-300 border border-orange-500/50",
+  3: "bg-amber-500/25 text-amber-300 border border-amber-500/50",
+  4: "bg-lime-500/25 text-lime-300 border border-lime-500/50",
+  5: "bg-emerald-500/25 text-emerald-300 border border-emerald-500/50",
+};
+
+function RatingPicker({ label, labels, value, onChange }: {
+  label: string;
+  labels: string[];
+  value: number | null;
+  onChange: (n: number) => void;
+}) {
+  return (
+    <div>
+      {label && <p className="text-xs text-zinc-500 mb-2.5">{label}</p>}
+      <div className="grid grid-cols-5 gap-1.5">
+        {[1, 2, 3, 4, 5].map((n) => (
+          <button
+            key={n}
+            onClick={() => onChange(n)}
+            className={`flex flex-col items-center gap-1 py-2.5 rounded-xl text-sm font-bold transition-all ${
+              value === n ? RATING_COLORS[n] : "bg-zinc-800 text-zinc-600 hover:bg-zinc-700 hover:text-zinc-400"
+            }`}
+          >
+            <span>{n}</span>
+            <span className="text-[9px] font-normal text-current opacity-70 leading-tight">{labels[n - 1]}</span>
+          </button>
+        ))}
+      </div>
+    </div>
   );
 }
 

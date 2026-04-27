@@ -55,13 +55,13 @@ export default function NutritionPage() {
                   {meal.optional && <span className="text-zinc-600 text-sm font-normal"> (optional)</span>}
                   <span className="text-zinc-500 text-sm"> — {meal.time}</span>
                 </div>
-                <span className="text-zinc-500 text-sm flex-shrink-0">~{meal.calories} kcal</span>
+                <span className="text-zinc-500 text-sm shrink-0">~{meal.calories} kcal</span>
               </div>
               <div className="divide-y divide-zinc-800/60">
                 {meal.items.map((item, j) => (
                   <div key={j} className="flex justify-between items-center px-4 py-2.5">
                     <span className="text-sm text-zinc-200">{item.name}</span>
-                    <span className="text-sm text-zinc-500 ml-4 flex-shrink-0">{item.detail}</span>
+                    <span className="text-sm text-zinc-500 ml-4 shrink-0">{item.detail}</span>
                   </div>
                 ))}
               </div>
@@ -69,7 +69,7 @@ export default function NutritionPage() {
           ))}
         </div>
         <p className="text-zinc-600 text-sm mt-3 leading-relaxed">
-          Since breakfast is removed, dinner carries more of the daily calorie load — make sure it's a proper sit-down meal with all three components (protein, carbs, veg). Don't skip the evening snack if you trained that day.
+          Since breakfast is removed, dinner carries more of the daily calorie load — make sure it&apos;s a proper sit-down meal with all three components (protein, carbs, veg). Don&apos;t skip the evening snack if you trained that day.
         </p>
       </section>
 
@@ -79,7 +79,7 @@ export default function NutritionPage() {
         <div className="bg-zinc-900 border border-zinc-800 rounded-2xl overflow-hidden divide-y divide-zinc-800/60">
           {LUNCH_TIPS.map((tip, i) => (
             <div key={i} className="flex gap-2 px-4 py-3">
-              <span className="text-zinc-600 mt-0.5 flex-shrink-0">→</span>
+              <span className="text-zinc-600 mt-0.5 shrink-0">→</span>
               <span className="text-sm text-zinc-300">{tip}</span>
             </div>
           ))}
@@ -92,7 +92,7 @@ export default function NutritionPage() {
         <div className="bg-zinc-900 border border-zinc-800 rounded-2xl overflow-hidden divide-y divide-zinc-800/60">
           {CARB_CYCLING.map((item, i) => (
             <div key={i} className="flex gap-2 px-4 py-3">
-              <span className="text-zinc-600 mt-0.5 flex-shrink-0">→</span>
+              <span className="text-zinc-600 mt-0.5 shrink-0">→</span>
               <p className="text-sm text-zinc-300">
                 <span className="font-medium">{item.label}</span>
                 {": "}
@@ -109,7 +109,7 @@ export default function NutritionPage() {
         <div className="bg-zinc-900 border border-zinc-800 rounded-2xl overflow-hidden divide-y divide-zinc-800/60">
           {CORE_TIPS.map((tip, i) => (
             <div key={i} className="flex gap-2 px-4 py-3">
-              <span className="text-zinc-600 mt-0.5 flex-shrink-0">→</span>
+              <span className="text-zinc-600 mt-0.5 shrink-0">→</span>
               <span className="text-sm text-zinc-300">{tip}</span>
             </div>
           ))}

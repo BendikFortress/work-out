@@ -25,6 +25,8 @@ export interface DayLog {
     dinner: boolean;
     eveningSnack: boolean;
   };
+  workoutRating?: number; // 1–5
+  feelingScore?: number;  // 1–5
 }
 
 const STORAGE_KEY = "workout-tracker-logs";

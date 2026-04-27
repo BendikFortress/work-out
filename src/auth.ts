@@ -21,6 +21,11 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     }),
   ],
   callbacks: {
+    authorized({ auth }) {
+      // Returning false causes NextAuth to redirect to pages.signIn (/login).
+      // The proxy matcher already excludes /login, /register, and /api/* routes.
+      return !!auth;
+    },
     async jwt({ token, user }) {
       if (user?.id) token.id = user.id;
       return token;

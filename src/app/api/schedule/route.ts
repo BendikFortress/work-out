@@ -1,21 +1,20 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
-import { getAllLogs, ensureTables } from "@/lib/db";
+import { getSettings, initPlanSchedule, ensureTables } from "@/lib/db";
 
-export async function GET() {
+/** Seed / re-seed the 63-day workout schedule for the authenticated user. */
+export async function POST() {
   try {
     const session = await auth();
     if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     await ensureTables();
     const userId = Number(session.user.id);
-    const logs = await getAllLogs(userId);
-
-    const map: Record<string, (typeof logs)[0]> = {};
-    for (const log of logs) map[log.date] = log;
-    return NextResponse.json(map);
+    const settings = await getSettings(userId);
+    await initPlanSchedule(userId, settings.startDate);
+    return NextResponse.json({ ok: true });
   } catch (err) {
-    console.error("[GET /api/logs]", err);
+    console.error("[POST /api/schedule]", err);
     return NextResponse.json({ error: String(err) }, { status: 500 });
   }
 }
