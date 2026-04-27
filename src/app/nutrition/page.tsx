@@ -18,7 +18,7 @@ const CARB_CYCLING = [
 
 export default function NutritionPage() {
   return (
-    <div className="max-w-lg mx-auto px-4 pt-6 space-y-6">
+    <div className="max-w-lg mx-auto px-5 pt-6 space-y-6">
       {/* Header */}
       <div>
         <h1 className="text-2xl font-bold">Nutrition</h1>

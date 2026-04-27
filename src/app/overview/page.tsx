@@ -20,7 +20,7 @@ export default function OverviewPage() {
   const [expandedWorkout, setExpandedWorkout] = useState<WorkoutType | null>(null);
 
   return (
-    <div className="max-w-lg mx-auto px-4 pt-6 space-y-6">
+    <div className="max-w-lg mx-auto px-5 pt-6 space-y-6">
       {/* Header */}
       <div>
         <h1 className="text-2xl font-bold">9-Week Shred & Define</h1>

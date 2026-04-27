@@ -171,7 +171,7 @@ export default function TrackingPage() {
   const weightPoints = allDates.filter((d) => logs[d]?.bodyWeight).map((d) => ({ date: d, weight: logs[d].bodyWeight! }));
 
   return (
-    <div className="max-w-lg mx-auto px-4 pt-6 space-y-6">
+    <div className="max-w-lg mx-auto px-5 pt-6 space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -690,7 +690,7 @@ function SettingsIcon() {
 
 function LoadingSkeleton() {
   return (
-    <div className="max-w-lg mx-auto px-4 pt-6 space-y-5 animate-pulse">
+    <div className="max-w-lg mx-auto px-5 pt-6 space-y-5 animate-pulse">
       <div className="h-10 bg-zinc-900 rounded-xl w-48" />
       <div className="grid grid-cols-3 gap-2">{[0, 1, 2].map((i) => <div key={i} className="h-20 bg-zinc-900 rounded-2xl" />)}</div>
       <div className="h-64 bg-zinc-900 rounded-2xl" />

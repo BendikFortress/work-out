@@ -184,7 +184,7 @@ export default function HomePage() {
   const exercisesTotal = workout.exercises?.length ?? 0;
 
   return (
-    <div className="max-w-lg mx-auto px-4 pt-6 space-y-5">
+    <div className="max-w-lg mx-auto px-5 pt-6 space-y-5">
       {/* Header */}
       <div>
         <p className="text-zinc-500 text-sm">
@@ -571,7 +571,7 @@ function RatingPicker({ label, labels, value, onChange }: {
 
 function LoadingSkeleton() {
   return (
-    <div className="max-w-lg mx-auto px-4 pt-6 space-y-5 animate-pulse">
+    <div className="max-w-lg mx-auto px-5 pt-6 space-y-5 animate-pulse">
       <div className="h-16 bg-zinc-900 rounded-xl" />
       <div className="h-64 bg-zinc-900 rounded-2xl" />
       <div className="h-48 bg-zinc-900 rounded-2xl" />
